@@ -24,6 +24,8 @@ ALLOWED_TARGETS = frozenset(
         "up",
         "down",
         "restart",
+        # logs состояние не меняет — нужна агенту для диагностики упавших сервисов
+        "logs",
     }
 )
 

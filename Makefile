@@ -16,7 +16,7 @@ endif
 export CLAUDE_PROFILE
 
 .DEFAULT_GOAL := up
-.PHONY: init up down restart
+.PHONY: init up down restart logs
 
 # Первичная инициализация: каталоги данных, свежие образы, запуск сервисов.
 # Каталоги создаются заранее — иначе их создаёт Docker от root и ArangoDB
@@ -34,6 +34,11 @@ up:
 # Остановка сервисов и удаление контейнеров; тома данных сохраняются.
 down:
 	$(COMPOSE) down
+
+# Логи всех сервисов окружения, включая завершившиеся контейнеры вроде arangodb-init.
+# Без цвета и с ограничением хвоста: вывод уходит агенту через раннер целей.
+logs:
+	$(COMPOSE) logs --no-color --tail=200
 
 # Перезапуск: последовательно down и up.
 restart:

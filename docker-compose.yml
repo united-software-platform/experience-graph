@@ -29,7 +29,6 @@ services:
       - /dev/null:${PROJECT_DIR:-/app}/.env:ro
   arangodb:
     image: arangodb:3.12.10
-    container_name: arangodb
     restart: unless-stopped
     environment:
       ARANGO_ROOT_PASSWORD: ${ARANGO_ROOT_PASSWORD}
@@ -53,7 +52,6 @@ services:
     # Одноразовое создание базы ${ARANGO_DB} внутри тома данных [DOCK-014]:
     # без неё MCP-сервер поднимает HTTP-шлюз, но не отвечает на initialize
     image: arangodb:3.12.10
-    container_name: arangodb-init
     restart: "no"                                  # исключение из DOCK-007
     environment:
       ARANGO_PORT: ${ARANGO_PORT}
@@ -75,7 +73,6 @@ services:
     # локальная сборка не нужна. Тег latest подвижен: свежая сборка форка
     # приезжает по `make mcp-pull`.
     image: ghcr.io/united-software-platform/mcp-server-arangodb:latest
-    container_name: llmdd_mcp_arangodb
     restart: unless-stopped
     env_file: .env
     environment:

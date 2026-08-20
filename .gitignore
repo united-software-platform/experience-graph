@@ -9,6 +9,9 @@
 # Claude per-account config volumes
 .claude-accounts/
 
+# Данные сервисов окружения: тома ArangoDB и выгрузки, создаются make init
+data/
+
 .gh/
 .ssh/
 /tmp
