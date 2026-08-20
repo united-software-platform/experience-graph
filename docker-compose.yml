@@ -21,3 +21,78 @@ services:
       - ${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}/${CLAUDE_PROFILE:?не задан профиль аккаунта Claude}:${CLAUDE_CONFIG_DIR:-/home/claude/.claude}
       - ${PROJECT_DIR:-/app}/${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}      # анонимный том прячет чужие профили внутри контейнера
       - ${SSH_DIR:-.ssh}:${CONTAINER_SSH_DIR:-/home/claude/.ssh}           # ключи для работы с репозиторием
+  arangodb:
+    image: arangodb:3.12.10
+    container_name: arangodb
+    restart: unless-stopped
+    environment:
+      ARANGO_ROOT_PASSWORD: ${ARANGO_ROOT_PASSWORD}
+      # Язык сервера задаётся только при первичной инициализации
+      LANG: ${ARANGO_LANG}
+    # Порт сервера задаётся явно: образ по умолчанию слушает 8529,
+    # а .env (ARANGO_PORT, ARANGO_URL) описывает подключение по ${ARANGO_PORT}
+    command: [ "arangod", "--server.endpoint", "tcp://0.0.0.0:${ARANGO_PORT}" ]
+    ports:
+      - "${ARANGO_PORT}:${ARANGO_PORT}"    # HTTP API и веб-интерфейс
+    volumes:
+      - ./data/arangodb:/var/lib/arangodb3           # данные коллекций
+      - ./data/arangodb-apps:/var/lib/arangodb3-apps # расширения (Foxx)
+    healthcheck:
+      test: [ "CMD-SHELL", "arangosh --server.endpoint tcp://127.0.0.1:${ARANGO_PORT} --server.username root --server.password \"$$ARANGO_ROOT_PASSWORD\" --javascript.execute-string 'db._version()' > /dev/null" ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+  arangodb-init:
+    # Одноразовое создание базы ${ARANGO_DB} внутри тома данных [DOCK-014]:
+    # без неё MCP-сервер поднимает HTTP-шлюз, но не отвечает на initialize
+    image: arangodb:3.12.10
+    container_name: arangodb-init
+    restart: "no"                                  # исключение из DOCK-007
+    environment:
+      ARANGO_PORT: ${ARANGO_PORT}
+      ARANGO_USER: ${ARANGO_USER}
+      ARANGO_ROOT_PASSWORD: ${ARANGO_ROOT_PASSWORD}
+      ARANGO_DB: ${ARANGO_DB}
+    entrypoint: [ "/bin/sh", "-c" ]
+    command:
+      - |
+        arangosh --server.endpoint "tcp://arangodb:$$ARANGO_PORT" \
+          --server.username "$$ARANGO_USER" \
+          --server.password "$$ARANGO_ROOT_PASSWORD" \
+          --javascript.execute-string 'var d = require("internal").env.ARANGO_DB; if (db._databases().indexOf(d) === -1) { db._createDatabase(d); print("created: " + d); } else { print("exists: " + d); }'
+    depends_on:
+      arangodb:
+        condition: service_healthy                 # ждёт готовности БД [DOCK-015]
+  mcp-arangodb:
+    # Образ собирается форком upstream-репозитория и публикуется в GHCR,
+    # локальная сборка не нужна. Тег latest подвижен: свежая сборка форка
+    # приезжает по `make mcp-pull`.
+    image: ghcr.io/united-software-platform/mcp-server-arangodb:latest
+    container_name: llmdd_mcp_arangodb
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MCP_HTTP_PORT: ${MCP_HTTP_PORT:-8000}
+      # Имена переменных проекта не совпадают с ожидаемыми MCP-сервером:
+      # .env остаётся единственным источником истины по учётным данным
+      ARANGO_USERNAME: ${ARANGO_USER}
+      ARANGO_PASSWORD: ${ARANGO_ROOT_PASSWORD}
+    depends_on:
+      arangodb:
+        condition: service_healthy
+      arangodb-init:
+        condition: service_completed_successfully  # база ${ARANGO_DB} создана [DOCK-015]
+      # Сервер стартует только после создания базы: на несуществующей
+      # ARANGO_DB он поднимает HTTP-шлюз, но не отвечает на initialize
+    # Порт наружу не публикуется: у сервера нет аутентификации, а его
+    # инструменты включают удаление коллекций. Сервер доступен только
+    # контейнерам сети окружения по имени `mcp-arangodb`
+    volumes:
+      - ./data/arangodb-backups:/app/data/arangodb-backups # выгрузки arango_backup
+    healthcheck:
+      test: [ "CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:${MCP_HTTP_PORT:-8000}/healthz" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

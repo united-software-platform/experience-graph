@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "arangodb": {
+      "type": "http",
+      "url": "${MCP_ARANGO_URL:-http://mcp-arangodb:8000/mcp}"
+    }
+  }
+}

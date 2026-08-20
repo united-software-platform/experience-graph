@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(./.env)",
+      "Read(./.env.local)",
+      "Read(./.env.*.local)",
+      "Read(//app/.env)",
+      "Read(./.ssh/**)",
+      "Read(./.gh/**)",
+      "Read(./.claude-accounts/**)"
+    ]
+  }
+}
