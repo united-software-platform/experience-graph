@@ -1,0 +1,23 @@
+services:
+  claude:
+    # Готовый мультиарх-образ из GHCR: тег latest — последняя опубликованная сборка.
+    # Свой образ (другой UID/GID, дополнительные инструменты, закреплённая версия CLI)
+    # собирается локально, его тег подставляется сюда вместо образа из GHCR — см. README
+    image: ghcr.io/united-software-platform/claude:latest
+    # Отдельный compose-профиль: `docker compose up` сервисов окружения агента не поднимаетL
+    profiles: ["claude"]
+    # Команда по умолчанию — сам агент; аргумент после имени сервиса её заменяет (bash, git, …)
+    command: claude
+    working_dir: ${PROJECT_DIR:-/app}
+    env_file: .env
+    environment:
+      # Консолидирует весь конфиг (.claude.json, .credentials.json)
+      # в смонтированный каталог аккаунта, иначе авторизация слетает
+      CLAUDE_CONFIG_DIR: ${CLAUDE_CONFIG_DIR:-/home/claude/.claude}
+
+    volumes:
+      - .:${PROJECT_DIR:-/app}                                             # рабочее дерево проекта
+      # Профиль обязателен: без него путь схлопнется в каталог всех аккаунтов
+      - ${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}/${CLAUDE_PROFILE:?не задан профиль аккаунта Claude}:${CLAUDE_CONFIG_DIR:-/home/claude/.claude}
+      - ${PROJECT_DIR:-/app}/${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}      # анонимный том прячет чужие профили внутри контейнера
+      - ${SSH_DIR:-.ssh}:${CONTAINER_SSH_DIR:-/home/claude/.ssh}           # ключи для работы с репозиторием

@@ -1,0 +1,15 @@
+
+*.log
+.DS_Store
+.idea/
+
+# Env
+.env
+
+# Claude per-account config volumes
+.claude-accounts/
+
+.gh/
+.ssh/
+/tmp
+.claude/settings.local.json
