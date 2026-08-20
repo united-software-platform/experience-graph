@@ -3,6 +3,18 @@
 
 COMPOSE ?= docker compose
 
+# compose интерполирует файл целиком, включая сервис claude, даже когда его профиль
+# не поднимается. CLAUDE_PROFILE объявлен там обязательным, поэтому без значения
+# падает любая цель, а не только запуск агента. Заглушка удовлетворяет проверку и
+# до монтирования каталога аккаунта не доходит: цели этого Makefile сервис claude
+# не запускают — для него профиль задаётся явно при вызове docker compose.
+# Приоритет сохраняется: значение из окружения или из .env заглушкой не затирается.
+CLAUDE_PROFILE ?= $(shell sed -n 's/^CLAUDE_PROFILE=//p' .env 2>/dev/null | tail -n 1)
+ifeq ($(strip $(CLAUDE_PROFILE)),)
+CLAUDE_PROFILE := _unset
+endif
+export CLAUDE_PROFILE
+
 .DEFAULT_GOAL := up
 .PHONY: init up down restart
 
