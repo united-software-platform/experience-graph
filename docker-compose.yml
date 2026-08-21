@@ -61,10 +61,20 @@ services:
     entrypoint: [ "/bin/sh", "-c" ]
     command:
       - |
-        arangosh --server.endpoint "tcp://arangodb:$$ARANGO_PORT" \
-          --server.username "$$ARANGO_USER" \
-          --server.password "$$ARANGO_ROOT_PASSWORD" \
-          --javascript.execute-string 'var d = require("internal").env.ARANGO_DB; if (db._databases().indexOf(d) === -1) { db._createDatabase(d); print("created: " + d); } else { print("exists: " + d); }'
+        # Первый старт образа проходит в два этапа: бутстрап-инстанс инициализирует
+        # том и выключается, только потом поднимается рабочий. Healthcheck успевает
+        # пройти по бутстрапу, поэтому depends_on отпускает эту цель в окно выключения
+        # и arangosh получает «shutdown in progress». Отсюда повтор, а не одна попытка.
+        for attempt in $$(seq 1 30); do
+          arangosh --server.endpoint "tcp://arangodb:$$ARANGO_PORT" \
+            --server.username "$$ARANGO_USER" \
+            --server.password "$$ARANGO_ROOT_PASSWORD" \
+            --javascript.execute-string 'var d = require("internal").env.ARANGO_DB; if (db._databases().indexOf(d) === -1) { db._createDatabase(d); print("created: " + d); } else { print("exists: " + d); }' && exit 0
+          echo "arangodb ещё не отвечает, попытка $$attempt из 30"
+          sleep 2
+        done
+        echo "arangodb не поднялся за 60 с" >&2
+        exit 1
     depends_on:
       arangodb:
         condition: service_healthy                 # ждёт готовности БД [DOCK-015]
