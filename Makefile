@@ -3,20 +3,14 @@
 
 COMPOSE ?= docker compose
 
-# compose интерполирует файл целиком, включая сервис claude, даже когда его профиль
-# не поднимается. CLAUDE_PROFILE объявлен там обязательным, поэтому без значения
-# падает любая цель, а не только запуск агента. Заглушка удовлетворяет проверку и
-# до монтирования каталога аккаунта не доходит: цели этого Makefile сервис claude
-# не запускают — для него профиль задаётся явно при вызове docker compose.
-# Приоритет сохраняется: значение из окружения или из .env заглушкой не затирается.
+# Профиль аккаунта Claude нужен только цели claude-shell. Значение берётся из
+# окружения, иначе из .env — экспорт не нужен: compose читает .env сам, а
+# переменную окружения наследует и так. Остальным целям профиль безразличен:
+# в docker-compose.yml у него есть безопасное значение по умолчанию.
 CLAUDE_PROFILE ?= $(shell sed -n 's/^CLAUDE_PROFILE=//p' .env 2>/dev/null | tail -n 1)
-ifeq ($(strip $(CLAUDE_PROFILE)),)
-CLAUDE_PROFILE := _unset
-endif
-export CLAUDE_PROFILE
 
 .DEFAULT_GOAL := up
-.PHONY: init up down restart logs
+.PHONY: init up down restart logs claude-shell
 
 # Первичная инициализация: каталоги данных, свежие образы, запуск сервисов.
 # Каталоги создаются заранее — иначе их создаёт Docker от root и ArangoDB
@@ -44,3 +38,16 @@ logs:
 restart:
 	$(MAKE) down
 	$(MAKE) up
+
+# Вход в контейнер агента. Профиль обязателен именно здесь: он определяет, какой
+# каталог аккаунта смонтируется в контейнер. Без проверки агент молча получил бы
+# пустой профиль __no_profile__ из docker-compose.yml и потребовал бы новый вход.
+# В белый список раннера цель не добавляется: она интерактивная и повесила бы его.
+claude-shell:
+	@test -n "$(CLAUDE_PROFILE)" || { \
+		echo "Не задан CLAUDE_PROFILE — укажите профиль аккаунта:" >&2; \
+		echo "  CLAUDE_PROFILE=<профиль> make claude-shell" >&2; \
+		echo "или добавьте строку CLAUDE_PROFILE=<профиль> в .env" >&2; \
+		exit 1; \
+	}
+	$(COMPOSE) --profile claude run --rm claude bash

@@ -20,8 +20,10 @@ services:
 
     volumes:
       - .:${PROJECT_DIR:-/app}                                             # рабочее дерево проекта
-      # Профиль обязателен: без него путь схлопнется в каталог всех аккаунтов
-      - ${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}/${CLAUDE_PROFILE:?не задан профиль аккаунта Claude}:${CLAUDE_CONFIG_DIR:-/home/claude/.claude}
+      # Профиль задаёт каталог аккаунта. Значение по умолчанию намеренно указывает
+      # на несуществующий подкаталог: без профиля путь схлопнулся бы в каталог всех
+      # аккаунтов и агент увидел бы чужие профили. Проверка — в цели make claude-shell
+      - ${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}/${CLAUDE_PROFILE:-__no_profile__}:${CLAUDE_CONFIG_DIR:-/home/claude/.claude}
       - ${PROJECT_DIR:-/app}/${CLAUDE_ACCOUNTS_DIR:-.claude-accounts}      # анонимный том прячет чужие профили внутри контейнера
       - ${SSH_DIR:-.ssh}:${CONTAINER_SSH_DIR:-/home/claude/.ssh}           # ключи для работы с репозиторием
       # Файл секретов скрыт от агента [READ-008]: значения приезжают через env_file,
@@ -83,7 +85,7 @@ services:
     # локальная сборка не нужна. Тег latest подвижен: свежая сборка форка
     # приезжает по `make mcp-pull`.
     image: ghcr.io/united-software-platform/mcp-server-arangodb:latest
-    restart: unless-stopped
+    restart: unless-stoppedl
     env_file: .env
     environment:
       MCP_HTTP_PORT: ${MCP_HTTP_PORT:-8000}
